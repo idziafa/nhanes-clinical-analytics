@@ -6,6 +6,18 @@ A practical R data analytics project examining adult BMI, blood pressure, age re
 
 > **Important limitation:** These unweighted, unique-ID descriptive summaries are **not nationally representative prevalence estimates**. The source educational sample includes resampled repeated participant IDs. This project selects one consistent record per adult ID for teaching participant-level analysis; it does not reconstruct the original complex survey design. No diagnosis or causal conclusion is intended.
 
+## Explore the Project
+
+**[View Interactive Shiny Dashboard](https://idziafa-analytics.shinyapps.io/nhanes-clinical-analytics/)**
+
+Explore the clinical data through interactive charts, filters,
+summary statistics, and downloadable results.
+
+**[Read the Analytical Report](https://idziafa.github.io/nhanes-clinical-analytics/)**
+
+View the reproducible Quarto report covering data preparation,
+descriptive analysis, visualisations, and interpretation.
+
 ## Repository layout
 
 ```text
