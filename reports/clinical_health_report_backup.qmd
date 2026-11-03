@@ -1,0 +1,215 @@
+---
+title: "Clinical Health Indicators: An Exploratory Analysis of Educational NHANES Data"
+subtitle: "Adult participant-level portfolio report | BMI, blood pressure, age and data quality"
+author: "NHANES Clinical Analytics Portfolio"
+format:
+  html:
+    theme: darkly
+    toc: true
+    toc-depth: 2
+    code-fold: true
+    embed-resources: true
+    fig-width: 9
+    fig-height: 5
+execute:
+  echo: false
+  warning: false
+  message: false
+---
+
+```{r setup}
+library(dplyr)
+library(ggplot2)
+if (!file.exists("../data/adult_unique_data.rds")) {
+  stop("Missing prepared data. From project root run: Rscript scripts/01_prepare_data.R")
+}
+d <- readRDS("../data/adult_unique_data.rds")
+original <- readRDS("../data/adult_clinical_data.rds")
+clinical <- readRDS("../data/clinical_data.rds")
+stopifnot(nrow(d) == n_distinct(d$ID))
+navy <- "#0F172A"
+cyan <- "#38BDF8"
+gold <- "#FACC15"
+coral <- "#F87171"
+green <- "#34D399"
+plot_theme <- function() {
+  theme_minimal(base_size = 12) +
+    theme(plot.background = element_rect(fill = navy, colour = NA),
+          panel.background = element_rect(fill = navy, colour = NA),
+          panel.grid.major = element_line(colour = "#334155", linewidth = .35),
+          panel.grid.minor = element_blank(),
+          text = element_text(colour = "#E2E8F0"),
+          axis.text = element_text(colour = "#CBD5E1"),
+          legend.background = element_rect(fill = navy, colour = NA),
+          legend.key = element_rect(fill = navy, colour = NA))
+}
+fmt <- function(x, digits = 2) format(round(x, digits), nsmall = digits, big.mark = ",")
+valid_bmi <- sum(!is.na(d$BMI))
+valid_sbp <- sum(!is.na(d$BPSysAve))
+valid_dbp <- sum(!is.na(d$BPDiaAve))
+cor_bmi <- cor(d$Age, d$BMI, use = "complete.obs")
+cor_sbp <- cor(d$Age, d$BPSysAve, use = "complete.obs")
+cor_dbp <- cor(d$Age, d$BPDiaAve, use = "complete.obs")
+```
+
+## Executive summary
+
+This portfolio analysis describes **`r format(nrow(d), big.mark=",")` unique adult participant IDs** after selecting adults aged 18 or older and retaining one copy of each ID from the resampled `NHANES` R-package teaching dataset. The source extract contains **`r format(nrow(clinical), big.mark=",")` resampled rows**; these are not 10,000 distinct people.
+
+Mean BMI among the `r format(valid_bmi, big.mark=",")` adults with recorded BMI was **`r fmt(mean(d$BMI, na.rm=TRUE))` kg/m²** (SD `r fmt(sd(d$BMI,na.rm=TRUE))`). Age had a very weak positive linear relationship with BMI (**r = `r fmt(cor_bmi, 3)`**) and a moderate positive relationship with systolic BP (**r = `r fmt(cor_sbp, 3)`**). The age–diastolic BP Pearson correlation was close to zero (**r = `r fmt(cor_dbp, 3)`**).
+
+> **Interpretation boundary:** These are *unweighted educational sample summaries*, not nationally representative prevalence estimates, clinical diagnoses, or causal effects.
+
+## Data source and analytical methods
+
+The `NHANES` package provides a resampled educational version of selected observations from the US National Health and Nutrition Examination Survey (2009–2012). We selected nine variables: ID, Age, Sex, Weight, Height, BMI, BPSysAve, BPDiaAve and Pulse. The script `scripts/01_prepare_data.R` reconstructs the data from the package and validates that repeated adult IDs agree on all selected measurements before retaining one row per ID.
+
+Adult BMI was categorised using conventional cut-points: underweight below 18.5, normal 18.5–24.9, overweight 25.0–29.9 and obese 30 or above. Missing BMI remained missing. Descriptive means exclude missing measurements **only for the variable being summarised**; participant denominators are shown separately where appropriate.
+
+```{r methodology-audit}
+audit <- data.frame(
+  Measure = c("Resampled input rows", "Resampled adult rows", "Distinct adult IDs",
+              "Repeated adult row occurrences beyond first", "Adults with BMI", "Adults with SBP", "Adults with DBP"),
+  Count = c(nrow(clinical), nrow(original), nrow(d), nrow(original)-nrow(d),
+            valid_bmi, valid_sbp, valid_dbp)
+)
+knitr::kable(audit)
+```
+
+The one-row-per-ID decision is practical for participant-level *teaching analyses*, but changes the distribution induced by the resampling procedure; it does **not** reconstruct the original complex survey design. Inferential tests and population estimates would require an appropriate survey-aware design and data source.
+
+## Participant profile
+
+```{r participant-summary}
+profile <- data.frame(
+  Metric = c("Adult IDs", "Mean age (years)", "Median age (years)",
+             "Mean BMI (kg/m²)", "BMI SD", "Mean systolic BP (mmHg)",
+             "Mean diastolic BP (mmHg)", "Mean pulse (beats/min)"),
+  Value = c(format(nrow(d),big.mark=","), fmt(mean(d$Age)),fmt(median(d$Age)),
+            fmt(mean(d$BMI,na.rm=TRUE)), fmt(sd(d$BMI,na.rm=TRUE)),
+            fmt(mean(d$BPSysAve,na.rm=TRUE)),fmt(mean(d$BPDiaAve,na.rm=TRUE)),
+            fmt(mean(d$Pulse,na.rm=TRUE)))
+)
+knitr::kable(profile)
+```
+
+## BMI distribution
+
+```{r fig-bmi-hist, fig-cap="BMI distribution among adults with recorded measurements; missing values excluded."}
+ggplot(d, aes(BMI)) +
+  geom_histogram(binwidth=2, boundary=0, fill=cyan, colour=navy, na.rm=TRUE) +
+  labs(title="Adult BMI distribution",x="BMI (kg/m²)",y="Participants") + plot_theme()
+```
+
+```{r bmi-tables}
+bmi_tab <- d |>
+  mutate(bmi_status = if_else(is.na(bmi_status), "Missing", bmi_status)) |>
+  count(bmi_status, name="Participants") |>
+  mutate(`% of adult IDs` = round(100 * Participants / nrow(d), 2))
+knitr::kable(bmi_tab)
+```
+
+The BMI distribution extends toward high values, so the mean alone does not describe its entire shape. Unusually high BMI readings should be checked against height and weight rather than discarded automatically.
+
+## BMI by sex
+
+```{r fig-bmi-sex, fig-cap="Distribution of recorded adult BMI by sex; points represent potential outliers under the boxplot rule."}
+ggplot(d, aes(Sex, BMI, fill=Sex)) +
+  geom_boxplot(na.rm=TRUE, colour="#E2E8F0", outlier.colour=gold,
+               outlier.size=1.6, linewidth=.55) +
+  scale_fill_manual(values=c(female=coral,male="#06B6D4")) +
+  labs(title="BMI by sex",x="Sex",y="BMI (kg/m²)") +
+  plot_theme() + theme(legend.position="none")
+```
+
+```{r bmi-sex-table}
+sex_tab <- d |>
+  group_by(Sex) |>
+  summarise(Participants=n(), `Valid BMI`=sum(!is.na(BMI)),
+            `Mean BMI`=round(mean(BMI,na.rm=TRUE),2),
+            `Median BMI`=round(median(BMI,na.rm=TRUE),2),
+            `BMI SD`=round(sd(BMI,na.rm=TRUE),2),.groups="drop")
+knitr::kable(sex_tab)
+```
+
+Group means and medians describe this educational subset, not sex-specific population estimates. Differences alone do not demonstrate causation or statistical significance.
+
+## Age and BMI
+
+```{r fig-age-bmi, fig-cap="Age and BMI; yellow line is the fitted simple linear trend, not a causal estimate."}
+ggplot(d, aes(Age, BMI)) +
+  geom_point(colour=cyan,alpha=.25,size=1.1,na.rm=TRUE) +
+  geom_smooth(method="lm",se=FALSE,colour=gold,na.rm=TRUE) +
+  labs(title=paste0("Age versus BMI (Pearson r = ",fmt(cor_bmi,3),")"),
+       x="Age (years)",y="BMI (kg/m²)") + plot_theme()
+```
+
+Pearson's r = **`r fmt(cor_bmi,3)`**, indicating little *linear* association. A near-zero correlation does not exclude nonlinear patterns.
+
+## Blood pressure and age
+
+```{r bp-age-table}
+bp_age <- d |>
+  mutate(age_group=factor(case_when(Age<40~"18–39",Age<65~"40–64",TRUE~"65+"),
+                          levels=c("18–39","40–64","65+"))) |>
+  group_by(age_group) |>
+  summarise(Participants=n(), `Valid SBP`=sum(!is.na(BPSysAve)),
+            `Valid DBP`=sum(!is.na(BPDiaAve)),
+            SBP=round(mean(BPSysAve,na.rm=TRUE),2),
+            DBP=round(mean(BPDiaAve,na.rm=TRUE),2),.groups="drop")
+knitr::kable(bp_age)
+```
+
+```{r fig-bp-group, fig-cap="Mean measured SBP and DBP by adult age category. Connecting lines are a visual guide, not longitudinal trajectories."}
+bp_plot <- rbind(
+  data.frame(age_group=bp_age$age_group, Measure="Systolic BP", Mean=bp_age$SBP),
+  data.frame(age_group=bp_age$age_group, Measure="Diastolic BP", Mean=bp_age$DBP)
+)
+ggplot(bp_plot,aes(age_group,Mean,colour=Measure,group=Measure)) +
+  geom_line(linewidth=1.1) + geom_point(size=3) +
+  geom_text(aes(label=round(Mean,1)),vjust=-.8,show.legend=FALSE,size=3.3) +
+  scale_colour_manual(values=c("Systolic BP"=cyan,"Diastolic BP"=gold)) +
+  expand_limits(y=0) +
+  labs(title="Mean BP by age group",x="Age group",y="Mean BP (mmHg)") + plot_theme()
+```
+
+Age–systolic BP correlation: **`r fmt(cor_sbp,3)`**. Age–diastolic BP correlation: **`r fmt(cor_dbp,3)`**. Cross-sectional age-group comparisons do not show how the same individuals' BP changes over time.
+
+## Data quality and missingness
+
+```{r missing-table}
+missing_tab <- data.frame(Variable=names(d),
+                          Missing=vapply(d,function(x)sum(is.na(x)),integer(1))) |>
+  mutate(`Missing %`=round(100*Missing/nrow(d),2))
+knitr::kable(missing_tab)
+```
+
+In the source NHANES BP examination protocol, blood pressure measurements were collected among examinees aged **8 years and older**. Hence, missing BP for younger children in the full educational dataset is consistent with measurement eligibility, not necessarily data-entry failure. This adult report separately calculates denominators for valid clinical measurements.
+
+A recorded diastolic BP of zero and extreme BMI readings are **review flags**, not grounds for automatic alteration. Source variable coding and measurement context would need to be checked before clinical interpretation.
+
+## Limitations
+
+- The NHANES R-package sample is an **educational resample**, not the original survey microdata with its full weighting/cluster/strata design.
+- Keeping one observation per ID reduces repeated sample contributions but does not recreate a representative US population sample.
+- Summaries are descriptive and unweighted. Do not report national prevalence, formal population inference, clinical diagnoses, or causal effects.
+- Missingness and extreme measurements may reflect eligibility, source coding, measurement context or error; this report does not resolve all such possibilities.
+- BMI is a screening metric and does not independently characterise an individual's health or body composition.
+
+## Reproducibility
+
+From the repository root, run:
+
+```bash
+Rscript scripts/01_prepare_data.R
+Rscript scripts/02_export_summaries.R
+quarto render reports/clinical_health_report.qmd
+```
+
+The report recalculates its statistics and figures directly from the prepared participant-level RDS file. `outputs/` contains reproducible CSV tables. The interactive dashboard is in `dashboard/app.R`.
+
+## Sources
+
+1. NHANES R package documentation: https://cran.r-project.org/package=NHANES
+2. NHANES BPX_G (2011–2012) examination eligibility and protocol: https://wwwn.cdc.gov/Nchs/Data/Nhanes/Public/2011/DataFiles/BPX_G.htm
+3. Quarto R documentation: https://quarto.org/docs/computations/r.html

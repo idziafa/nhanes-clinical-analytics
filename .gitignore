@@ -1,0 +1,71 @@
+# ==========================================
+# NHANES CLINICAL ANALYTICS PORTFOLIO
+# Git Ignore Configuration
+# ==========================================
+
+
+# 1. R SESSION AND WORKSPACE FILES
+# Exclude saved environments and session history
+
+.Rhistory
+.RData
+.Ruserdata
+*.RData
+*.Rhistory
+.Rproj.user/
+*.Rproj.user/
+
+
+# 2. CREDENTIALS AND ENVIRONMENT FILES
+# Prevent accidental publication of local secrets
+
+.Renviron
+.Renviron.*
+.env
+.env.*
+*.pem
+*.key
+
+# Allow environment templates if added later
+!.env.example
+
+
+# 3. GENERATED ANALYTICAL DATASETS
+# These can be recreated using preparation scripts
+
+data/*.rds
+
+
+# 4. GENERATED ANALYTICAL OUTPUTS
+# Exclude intermediate CSV files
+
+outputs/*.csv
+
+
+# 5. QUARTO TEMPORARY AND CACHE FILES
+# Exclude generated support files, not the final report
+
+.quarto/
+*_cache/
+*_files/
+reports/*_files/
+
+# IMPORTANT:
+# Do not ignore reports/*.html
+# The completed HTML report will be published.
+
+
+# 6. OPERATING SYSTEM AND EDITOR FILES
+
+.DS_Store
+Thumbs.db
+*~
+*.swp
+*.swo
+
+
+# 7. TEMPORARY FILES AND LOGS
+
+*.log
+*.tmp
+*.temp
